@@ -1,0 +1,25 @@
+name: Validate Build on HF Branch
+
+on:
+  push:
+    branches:
+      - HF
+    paths:
+      - '**/*.java'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Build with Maven
+        run: mvn clean package -DskipTests
