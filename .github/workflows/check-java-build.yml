@@ -5,10 +5,11 @@ on:
     branches:
       - HF
     paths:
-      - '**/*.java'
+      - '**/*.java'     # ⬅️ Trigger only when Java files are changed
 
 jobs:
   build:
+    if: github.event.pull_request.changed_files > 0
     runs-on: ubuntu-latest
 
     steps:
