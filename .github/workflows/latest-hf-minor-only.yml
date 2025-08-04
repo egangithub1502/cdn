@@ -1,0 +1,47 @@
+name: Run Only on Latest HF and Minor Branches
+
+on:
+  push:
+    branches:
+      - 'profit_deployment*'
+
+jobs:
+  run-latest-only:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Get current branch
+        id: current
+        run: echo "CURRENT_BRANCH=${GITHUB_REF##*/}" >> $GITHUB_ENV
+
+      - name: Get latest HF and Minor branches
+        run: |
+          all_branches=$(git ls-remote --heads origin | awk '{print $2}' | sed 's|refs/heads/||')
+          latest_hf=$(echo "$all_branches" | grep '^profit_deployment_hf_' | sort -Vr | head -n1)
+          latest_minor=$(echo "$all_branches" | grep '^profit_deployment_[0-9]' | grep -v 'hf' | sort -Vr | head -n1)
+          echo "LATEST_HF_BRANCH=$latest_hf" >> $GITHUB_ENV
+          echo "LATEST_MINOR_BRANCH=$latest_minor" >> $GITHUB_ENV
+
+      - name: Print debug info
+        run: |
+          echo "🔍 Current Branch: $CURRENT_BRANCH"
+          echo "📦 Latest HF Branch: $LATEST_HF_BRANCH"
+          echo "📦 Latest Minor Branch: $LATEST_MINOR_BRANCH"
+
+      - name: Stop workflow if not latest
+        run: |
+          if [[ "$CURRENT_BRANCH" != "$LATEST_HF_BRANCH" && "$CURRENT_BRANCH" != "$LATEST_MINOR_BRANCH" ]]; then
+            echo "⛔ Not the latest HF or Minor branch. Skipping workflow."
+            exit 1
+          else
+            echo "✅ This is the latest branch. Running Java compilation."
+          fi
+
+      - name: Compile Java file
+        run: |
+          mkdir -p build
+          javac cdn/src/main/java/com/example/*.java -d build/
+
