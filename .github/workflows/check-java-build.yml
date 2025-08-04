@@ -1,25 +1,43 @@
-name: Validate Build on PR to HF
+name: Run Only on Latest HF and Minor Branches
 
 on:
-  pull_request:
+  push:
     branches:
-      - HF
-    paths:
-      - '**/*.java'
+      - 'profit_deployment*'
 
 jobs:
-  build:
+  run-only-on-latest:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
+      - name: Get current branch
+        id: current
+        run: echo "CURRENT_BRANCH=${GITHUB_REF##*/}" >> $GITHUB_ENV
 
-      - name: Build with Maven
-        run: mvn clean package -DskipTests
+      - name: Get latest HF and minor branches in-memory
+        run: |
+          all_branches=$(git ls-remote --heads origin | awk '{print $2}' | sed 's|refs/heads/||')
+
+          latest_hf=$(echo "$all_branches" | grep '^profit_deployment_hf_' | sort -r | head -n1)
+          latest_minor=$(echo "$all_branches" | grep '^profit_deployment_[0-9]' | grep -v 'hf' | sort -r | head -n1)
+
+          echo "LATEST_HF_BRANCH=$latest_hf" >> $GITHUB_ENV
+          echo "LATEST_MINOR_BRANCH=$latest_minor" >> $GITHUB_ENV
+
+      - name: Debug output
+        run: |
+          echo "🔍 Current Branch: $CURRENT_BRANCH"
+          echo "📦 Latest HF Branch: $LATEST_HF_BRANCH"
+          echo "📦 Latest Minor Branch: $LATEST_MINOR_BRANCH"
+
+      - name: Stop workflow for older branches
+        run: |
+          if [[ "$CURRENT_BRANCH" != "$LATEST_HF_BRANCH" && "$CURRENT_BRANCH" != "$LATEST_MINOR_BRANCH" ]]; then
+            echo "⛔ This branch is not the latest HF or minor branch. Skipping pipeline."
+            exit 1
+          else
+            echo "✅ Running pipeline for the latest branch: $CURRENT_BRANCH"
+          fi
