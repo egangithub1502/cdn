@@ -19,30 +19,21 @@ jobs:
 
       - name: Get latest HF and minor branches in-memory
         run: |
-          # Get list of all remote branches
           all_branches=$(git ls-remote --heads origin | awk '{print $2}' | sed 's|refs/heads/||')
-
-          # Extract latest HF branch
           latest_hf=$(echo "$all_branches" | grep '^profit_deployment_hf_' | sort -r | head -n1)
-
-          # Extract latest minor branch (excluding HF)
-          latest_minor=$(echo "$all_branches" | grep '^profit_deployment_[0-9]' | grep -v '_hf_' | sort -r | head -n1)
-
+          latest_minor=$(echo "$all_branches" | grep '^profit_deployment_[0-9]' | grep -v 'hf' | sort -r | head -n1)
           echo "LATEST_HF_BRANCH=$latest_hf" >> $GITHUB_ENV
           echo "LATEST_MINOR_BRANCH=$latest_minor" >> $GITHUB_ENV
-
       - name: Debug output
         run: |
           echo "🔍 Current Branch: $CURRENT_BRANCH"
           echo "📦 Latest HF Branch: $LATEST_HF_BRANCH"
           echo "📦 Latest Minor Branch: $LATEST_MINOR_BRANCH"
-
-      - name: Run only for latest HF or minor branch
-        if: env.CURRENT_BRANCH == env.LATEST_HF_BRANCH || env.CURRENT_BRANCH == env.LATEST_MINOR_BRANCH
-        run: echo "✅ Running pipeline for the latest branch: $CURRENT_BRANCH"
-
       - name: Stop workflow for older branches
-        if: env.CURRENT_BRANCH != env.LATEST_HF_BRANCH && env.CURRENT_BRANCH != env.LATEST_MINOR_BRANCH
         run: |
-          echo "⛔ This branch is not the latest HF or minor branch. Skipping pipeline."
-          exit 1
+          if [[ "$CURRENT_BRANCH" != "$LATEST_HF_BRANCH" && "$CURRENT_BRANCH" != "$LATEST_MINOR_BRANCH" ]]; then
+            echo "⛔ This branch is not the latest HF or minor branch. Skipping pipeline."
+            exit 1
+          else
+            echo "✅ Running pipeline for the latest branch: $CURRENT_BRANCH"
+          fi
