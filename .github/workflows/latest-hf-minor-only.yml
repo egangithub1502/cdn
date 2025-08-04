@@ -6,7 +6,7 @@ on:
       - 'profit_deployment*'
 
 jobs:
-  run-latest-only:
+  validate-latest-java:
     runs-on: ubuntu-latest
 
     steps:
@@ -21,27 +21,29 @@ jobs:
         run: |
           all_branches=$(git ls-remote --heads origin | awk '{print $2}' | sed 's|refs/heads/||')
           latest_hf=$(echo "$all_branches" | grep '^profit_deployment_hf_' | sort -Vr | head -n1)
-          latest_minor=$(echo "$all_branches" | grep '^profit_deployment_[0-9]' | grep -v 'hf' | sort -Vr | head -n1)
+          latest_minor=$(echo "$all_branches" | grep -E '^profit_deployment_[0-9]' | grep -v 'hf' | sort -Vr | head -n1)
           echo "LATEST_HF_BRANCH=$latest_hf" >> $GITHUB_ENV
           echo "LATEST_MINOR_BRANCH=$latest_minor" >> $GITHUB_ENV
 
-      - name: Print debug info
+      - name: Debug print branches
         run: |
-          echo "🔍 Current Branch: $CURRENT_BRANCH"
-          echo "📦 Latest HF Branch: $LATEST_HF_BRANCH"
-          echo "📦 Latest Minor Branch: $LATEST_MINOR_BRANCH"
+          echo "🔍 CURRENT_BRANCH: $CURRENT_BRANCH"
+          echo "📦 LATEST_HF_BRANCH: $LATEST_HF_BRANCH"
+          echo "📦 LATEST_MINOR_BRANCH: $LATEST_MINOR_BRANCH"
 
-      - name: Stop workflow if not latest
+      - name: Stop if not latest
         run: |
           if [[ "$CURRENT_BRANCH" != "$LATEST_HF_BRANCH" && "$CURRENT_BRANCH" != "$LATEST_MINOR_BRANCH" ]]; then
-            echo "⛔ Not the latest HF or Minor branch. Skipping workflow."
+            echo "⛔ Not the latest HF or Minor branch. Exiting."
             exit 1
-          else
-            echo "✅ This is the latest branch. Running Java compilation."
           fi
 
-      - name: Compile Java file
-        run: |
-          mkdir -p build
-          javac cdn/src/main/java/com/example/*.java -d build/
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
 
+      - name: Build with Maven
+        run: |
+          mvn clean compile
