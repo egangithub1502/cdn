@@ -1,0 +1,90 @@
+name: Run Only on Latest HF and Minor Branches
+
+on:
+  push:
+    branches:
+      - 'profit_deployment*'
+  pull_request:
+    branches:
+      - 'profit_deployment*'
+    types: [opened, synchronize, reopened]
+
+jobs:
+  validate-latest-java:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        
+    - name: Get current branch
+      id: current
+      run: |
+        if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+          CURRENT_BRANCH="${{ github.head_ref }}"
+        else
+          CURRENT_BRANCH="${GITHUB_REF##*/}"
+        fi
+        echo "CURRENT_BRANCH=$CURRENT_BRANCH" >> $GITHUB_ENV
+        echo "Current branch: $CURRENT_BRANCH"
+        
+    - name: Get latest HF and Minor branches
+      run: |
+        git fetch --all
+        all_branches=$(git ls-remote --heads origin | awk '{print $2}' | sed 's|refs/heads/||')
+        latest_hf=$(echo "$all_branches" | grep '^profit_deployment_hf_' | sort -Vr | head -n1)
+        latest_minor=$(echo "$all_branches" | grep -E '^profit_deployment_[0-9]' | grep -v 'hf' | sort -Vr | head -n1)
+        echo "LATEST_HF_BRANCH=$latest_hf" >> $GITHUB_ENV
+        echo "LATEST_MINOR_BRANCH=$latest_minor" >> $GITHUB_ENV
+        
+    - name: Debug print branches
+      run: |
+        echo "🔍 Event Type: ${{ github.event_name }}"
+        echo "🔍 CURRENT_BRANCH: $CURRENT_BRANCH"
+        echo "📦 LATEST_HF_BRANCH: $LATEST_HF_BRANCH" 
+        echo "📦 LATEST_MINOR_BRANCH: $LATEST_MINOR_BRANCH"
+        
+    - name: Check if current branch is latest
+      id: branch_check
+      run: |
+        if [[ "$CURRENT_BRANCH" == "$LATEST_HF_BRANCH" || "$CURRENT_BRANCH" == "$LATEST_MINOR_BRANCH" ]]; then
+          echo "✅ Current branch is latest HF or Minor branch"
+          echo "is_latest=true" >> $GITHUB_OUTPUT
+        else
+          echo "⛔ Not the latest HF or Minor branch."
+          echo "is_latest=false" >> $GITHUB_OUTPUT
+        fi
+        
+    - name: Stop if not latest branch
+      if: steps.branch_check.outputs.is_latest == 'false'
+      run: |
+        echo "::warning title=Branch Not Latest::This workflow only runs on the latest HF or Minor branches"
+        echo "Current branch '$CURRENT_BRANCH' is not the latest."
+        echo "Latest HF: $LATEST_HF_BRANCH"
+        echo "Latest Minor: $LATEST_MINOR_BRANCH"
+        exit 1
+        
+    - name: Set up JDK
+      if: steps.branch_check.outputs.is_latest == 'true'
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        
+    - name: Cache Maven dependencies
+      if: steps.branch_check.outputs.is_latest == 'true'
+      uses: actions/cache@v3
+      with:
+        path: ~/.m2/repository
+        key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+        restore-keys: ${{ runner.os }}-maven-
+        
+    - name: Compile Java code (Fail if errors found)
+      if: steps.branch_check.outputs.is_latest == 'true'
+      run: |
+        echo "🔨 Compiling Java code..."
+        mvn clean compile -B
+        echo "✅ Compilation successful"
+
