@@ -1,0 +1,37 @@
+name: Java Compile Check on Latest Deployment Branch
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+jobs:
+  validate-java:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Get Latest Deployment Branch
+        id: get_branch
+        run: |
+          latest_branch=$(git branch -r | grep 'origin/profit_deployment_' | sed 's|origin/||' | sort | tail -n 1)
+          echo "latest_branch=$latest_branch" >> $GITHUB_ENV
+          echo "Latest branch is $latest_branch"
+      - name: Check PR Target
+        run: |
+          if [ "${{ github.event.pull_request.base.ref }}" != "${{ env.latest_branch }}" ]; then
+            echo "This PR is not targeting the latest deployment branch. Skipping..."
+            exit 1
+          fi
+      - name: Check for Java file changes
+        id: check_java
+        run: |
+          git fetch origin ${{ github.event.pull_request.base.ref }}
+          changed_files=$(git diff --name-only origin/${{ github.event.pull_request.base.ref }} HEAD)
+          echo "$changed_files" | grep -E '\.java$' || { echo "No Java files changed. Skipping compile."; exit 1; }
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+      - name: Compile Java Code
+        run: mvn compile
