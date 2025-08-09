@@ -30,12 +30,20 @@ jobs:
         echo "CURRENT_BRANCH=$CURRENT_BRANCH" >> $GITHUB_ENV
         echo "Current branch: $CURRENT_BRANCH"
         
-    - name: Get latest HF and Minor branches
+    - name: Get latest HF and Minor branches (only relevant ones)
       run: |
         git fetch --all
-        all_branches=$(git ls-remote --heads origin | awk '{print $2}' | sed 's|refs/heads/||')
-        latest_hf=$(echo "$all_branches" | grep '^profit_deployment_hf_' | sort -Vr | head -n1)
-        latest_minor=$(echo "$all_branches" | grep -E '^profit_deployment_[0-9]' | grep -v 'hf' | sort -Vr | head -n1)
+        
+        # Get HF branches only
+        hf_branches=$(git ls-remote --heads origin "profit_deployment_hf_*" | awk '{print $2}' | sed 's|refs/heads/||')
+        
+        # Get Minor (non-HF) branches only
+        minor_branches=$(git ls-remote --heads origin "profit_deployment_*" | awk '{print $2}' | sed 's|refs/heads/||' | grep -v 'hf')
+        
+        # Sort and pick the latest from each category
+        latest_hf=$(echo "$hf_branches" | sort -Vr | head -n1)
+        latest_minor=$(echo "$minor_branches" | sort -Vr | head -n1)
+        
         echo "LATEST_HF_BRANCH=$latest_hf" >> $GITHUB_ENV
         echo "LATEST_MINOR_BRANCH=$latest_minor" >> $GITHUB_ENV
         
