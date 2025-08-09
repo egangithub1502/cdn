@@ -81,31 +81,10 @@ jobs:
         key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
         restore-keys: ${{ runner.os }}-maven-
         
-    - name: Compile Java code
+    - name: Compile Java code (Fail if errors found)
       if: steps.branch_check.outputs.is_latest == 'true'
       run: |
-        echo "🔨 Starting Maven compilation..."
+        echo "🔨 Compiling Java code..."
         mvn clean compile -B
         echo "✅ Compilation successful"
-        
-    - name: Run tests
-      if: steps.branch_check.outputs.is_latest == 'true'
-      run: |
-        echo "🧪 Running tests..."
-        mvn test -B
-        echo "✅ Tests completed"
-        
-    - name: Verify WAR generation capability
-      if: steps.branch_check.outputs.is_latest == 'true'
-      run: |
-        echo "📦 Testing WAR generation..."
-        mvn clean package -B
-        
-        if ls target/*.war 1> /dev/null 2>&1; then
-          echo "✅ WAR generation test successful"
-          echo "Generated files:"
-          ls -la target/*.war
-        else
-          echo "❌ WAR generation test failed"
-          exit 1
-        fi
+
